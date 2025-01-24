@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctor Portal</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <h1>Doctor Portal</h1>
+    <p>Doctor ID: {{ doctor_id }}</p>
+    <!-- Use the same room variable as the patient -->
+    <button onclick="location.href='/call/{{ room }}'">Join as Doctor</button>
+</body>
+</html>

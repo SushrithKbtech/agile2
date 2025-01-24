@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Call</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="video-container">
+        <header class="call-header">
+            <h1>Video Call Room: {{ room }}</h1>
+        </header>
+        <main class="call-main">
+            <div class="video-wrapper">
+                <video id="localVideo" autoplay muted class="video"></video>
+                <video id="remoteVideo" autoplay class="video"></video>
+            </div>
+            <div id="transcriptionBox" class="transcription-box">
+                <textarea id="transcriptionText" rows="15" cols="80" readonly></textarea>
+            </div>
+        </main>
+        <footer class="controls">
+            <button id="toggleMic" class="control-button">🎤 Mute</button>
+            <button id="toggleVideo" class="control-button">📷 Video Off</button>
+            <button id="endCall" class="control-button end-call">❌ End Call</button>
+        </footer>
+    </div>
+
+    <script>
+        const socket = io();
+        const room = "{{ room }}";
+        const localVideo = document.getElementById("localVideo");
+        const remoteVideo = document.getElementById("remoteVideo");
+        const transcriptionText = document.getElementById("transcriptionText");
+        const toggleMic = document.getElementById("toggleMic");
+        const toggleVideo = document.getElementById("toggleVideo");
+        const endCall = document.getElementById("endCall");
+
+        let localStream;
+        let peerConnection;
+        let micEnabled = true;
+        let videoEnabled = true;
+
+        const configuration = {
+            iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+        };
+
+        const user = "User-" + Math.random().toString(36).substring(2, 8);
+        socket.emit("join_room", { room, user });
+
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then((micStream) => {
+                localStream = micStream;
+                localVideo.srcObject = micStream;
+
+                peerConnection = new RTCPeerConnection(configuration);
+                localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit("signal", { room, candidate: event.candidate });
+                    }
+                };
+
+                peerConnection.ontrack = (event) => {
+                    remoteVideo.srcObject = event.streams[0];
+                };
+
+                socket.on("signal", (data) => {
+                    if (data.sdp) {
+                        peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                        if (data.sdp.type === "offer") {
+                            peerConnection.createAnswer().then((answer) => {
+                                peerConnection.setLocalDescription(answer);
+                                socket.emit("signal", { room, sdp: answer });
+                            });
+                        }
+                    } else if (data.candidate) {
+                        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                });
+
+                peerConnection.createOffer().then((offer) => {
+                    peerConnection.setLocalDescription(offer);
+                    socket.emit("signal", { room, sdp: offer });
+                });
+
+                startTranscription();
+            })
+            .catch((error) => {
+                console.error("Error accessing media devices:", error);
+            });
+
+        function startTranscription() {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.continuous = true;
+            recognition.lang = "en-US";
+
+            recognition.onresult = function (event) {
+                let transcript = "";
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    transcript += event.results[i][0].transcript + " ";
+                }
+                const message = `${user}: ${transcript.trim()}`;
+                transcriptionText.value += message + "\n";
+                socket.emit("save_transcription", { room, transcription: transcript.trim(), user });
+            };
+
+            recognition.start();
+        }
+
+        socket.on("update_transcription", (data) => {
+            const { user, transcription } = data;
+            transcriptionText.value += `${user}: ${transcription}\n`;
+        });
+
+        toggleMic.addEventListener("click", () => {
+            micEnabled = !micEnabled;
+            localStream.getAudioTracks()[0].enabled = micEnabled;
+            toggleMic.textContent = micEnabled ? "🎤 Mute" : "🎤 Unmute";
+        });
+
+        toggleVideo.addEventListener("click", () => {
+            videoEnabled = !videoEnabled;
+            localStream.getVideoTracks()[0].enabled = videoEnabled;
+            toggleVideo.textContent = videoEnabled ? "📷 Video Off" : "📷 Video On";
+        });
+
+        endCall.addEventListener("click", async () => {
+            peerConnection.close();
+            fetch("/process_transcription", {
+                method: "POST",
+                body: JSON.stringify({ transcription: transcriptionText.value }),
+                headers: { "Content-Type": "application/json" },
+            }).then((response) => response.json()).then((data) => {
+                alert("AI has analyzed the conversation and generated a report!");
+            });
+            window.location.href = "/";
+        });
+    </script>
+</body>
+</html>
