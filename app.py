@@ -5,25 +5,25 @@ from fpdf import FPDF
 import os
 import sqlite3
 import speech_recognition as sr
-import openai  # For integrating ChatGPT API
+import openai  
 
-# Initialize OpenAI API key
-openai.api_key = 'Api Key'  # Replace with your actual OpenAI API key
+
+openai.api_key = 'Api Key'  
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS
-socketio = SocketIO(app, cors_allowed_origins="*")  # Allow cross-origin requests
+CORS(app) 
+socketio = SocketIO(app, cors_allowed_origins="*")  
 
-# Ensure the uploads directory exists
+
 if not os.path.exists("uploads"):
     os.makedirs("uploads")
 
-# Doctor-patient mapping
+
 appointments = {
     "doctor_suresh": ["ravi", "shreya"],
 }
 
-# Database setup
+
 def init_db():
     conn = sqlite3.connect("recordings.db")
     cursor = conn.cursor()
