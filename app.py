@@ -8,7 +8,7 @@ import speech_recognition as sr
 import openai  # For integrating ChatGPT API
 
 # Initialize OpenAI API key
-openai.api_key = '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'  # Replace with your actual OpenAI API key
+openai.api_key = 'Api Key'  # Replace with your actual OpenAI API key
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS
